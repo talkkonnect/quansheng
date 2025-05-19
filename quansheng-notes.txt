@@ -1,0 +1,150 @@
+Quansheng Notes
+
+Packet
+
+Hello = 0x514;
+GetRssi = 0x527;
+KeyPress = 0x801;
+GetScreen = 0x803;
+Scan = 0x808;
+ScanAdjust = 0x809;
+ScanReply = 0x908;
+ImHere = 0x515;
+RssiInfo = 0x528;
+WriteEeprom = 0x51D;
+WriteEepromReply = 0x51E;
+ReadEeprom = 0x51B;
+ReadEepromReply = 0x51C;
+
+obfuscation	
+private static readonly byte[] xor_array = { 0x16, 0x6c, 0x14, 0xe6, 0x2e, 0x91, 0x0d, 0x40, 0x21, 0x35, 0xd5, 0x40, 0x13, 0x03, 0xe9, 0x80 };
+
+crc16
+
+On Connect
+1. set serial speed=38400, Parity.None, 8, StopBits.One
+ 
+ public static void SendHello() 
+{
+    timeStamp = (uint)DateTimeOffset.Now.ToUnixTimeSeconds();
+    SendCommand(Packet.Hello, timeStamp); 
+}
+
+public static void SendCommand(ushort cmd, params object[] args)
+{
+    if (!Radio.AnalyzerMode || Radio.Monitoring || cmd == Packet.ScanAdjust)
+        SendCommand2(cmd, args);
+}
+
+        private static void SendCommand2(ushort cmd, params object[] args)
+        {
+            var data = new byte[256];
+            data[0] = 0xAB;
+            data[1] = 0xCD;
+            data[4] = cmd.Byte(0);
+            data[5] = cmd.Byte(1);
+            int ind = 8;
+            foreach (object val in args)
+            {
+                if (val is byte[] ba)
+                {
+                    foreach (byte byt in ba)
+                        data[ind++] = byt;
+                }
+                else
+                if (val is byte b)
+                    data[ind++] = b;
+                else if (val is ushort s1)
+                {
+                    data[ind++] = s1.Byte(0);
+                    data[ind++] = s1.Byte(1);
+                }
+                else if (val is short s2)
+                {
+                    data[ind++] = s2.Byte(0);
+                    data[ind++] = s2.Byte(1);
+                }
+                else if (val is uint i1)
+                {
+                    data[ind++] = i1.Byte(0);
+                    data[ind++] = i1.Byte(1);
+                    data[ind++] = i1.Byte(2);
+                    data[ind++] = i1.Byte(3);
+                }
+                else if (val is int i2)
+                {
+                    data[ind++] = i2.Byte(0);
+                    data[ind++] = i2.Byte(1);
+                    data[ind++] = i2.Byte(2);
+                    data[ind++] = i2.Byte(3);
+                }
+            }
+            int prmLen = ind - 8;
+            data[6] = prmLen.Byte(0);
+            data[7] = prmLen.Byte(1);
+            int crc = 0, xor = 0;
+            for (int i = 4; i < ind; i++)
+            {
+                crc = Crc16(data[i], crc);
+                data[i] = Crypt(data[i], xor++);
+            }
+            data[ind++] = Crypt(crc.Byte(0), xor++);
+            data[ind++] = Crypt(crc.Byte(1), xor);
+            data[ind++] = 0xDC;
+            data[ind++] = 0xBA;
+            ind -= 8;
+            data[2] = ind.Byte(0);
+            data[3] = ind.Byte(1);
+            SerialPort? sp = port;
+            if (sp != null)
+            {
+                lock (sp)
+                {
+                    try { sp.Write(data, 0, ind + 8); } catch { }
+                }
+            }
+        }
+    }
+}
+
+
+
+
+Queries from embedded side
+SendVersion
+BadChallenge
+
+
+1. session init, sends back version info and state timestamp is a session id really (CMD_0514)
+2. read eeprom (CMD_051B)
+3. write eeprom (CMD_051D)
+4. read RSSI (CMD_0527)
+5. read ADC (CMD_0529)
+6. check lock (CMD_052D)
+7. session init, sends back version info and state timestamp is a session id really this command also disables dual watch, crossband, 
+DTMF side tones, freq reverse, PTT ID, DTMF decoding, frequency offset exits power save, sets main VFO to upper,
+(CMD_052F)
+8. Write to multiple registers (CMD_0850)
+9. Read from multiple registers (CMD_0851)
+10. Set GPIO (CMD_0860)
+11. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
